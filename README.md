@@ -6,6 +6,9 @@ Model B with kernel 6.12+.
 
 > **First time?** Read [PITFALLS.md](PITFALLS.md) — it documents every
 > problem and fix encountered during development.
+>
+> **Already running?** See [USAGE.md](USAGE.md) — rotation, console
+> setup, boot configuration, images, debugging, and more.
 
 ## Prerequisites
 
