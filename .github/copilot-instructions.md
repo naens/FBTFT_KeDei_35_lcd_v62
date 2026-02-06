@@ -13,8 +13,8 @@ Linux kernel module driver for the KeDei 6.2 SPI TFT display (480×320), built u
 sudo apt install raspberrypi-kernel-headers build-essential device-tree-compiler
 make                    # builds fbtft.ko and fb_kedei62.ko
 sudo ./install_ko.sh    # copies .ko to /lib/modules/$(uname -r)/kernel/misc
-sudo ./install_dtb.sh   # compiles kedei.dts → kedei.dtb into /boot/overlays/
-# Add "dtoverlay=kedei" and "dtparam=spi=on" to /boot/config.txt, then reboot
+sudo ./install_dtb.sh   # compiles kedei.dts → kedei.dtbo into /boot/firmware/overlays/
+# Add "dtoverlay=kedei" and "dtparam=spi=on" to /boot/firmware/config.txt, then reboot
 ```
 
 ## Coding Conventions
