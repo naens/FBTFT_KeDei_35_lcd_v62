@@ -56,7 +56,7 @@
 				reg = <1>;
 
 				spi-max-frequency = <39000000>;
-				rotate = <0>;
+				rotate = <270>;
 				bgr;
 				fps = <20>;
 				buswidth = <8>;

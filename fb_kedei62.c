@@ -20,15 +20,25 @@
 #define HEIGHT		320
 #define FPS		1
 
+/*
+ * R61581 register 0x36 (Memory Access Control) values per rotation.
+ *
+ * Bit layout: MY.MX.MV.ML.BGR.MH.x.x
+ *   MY  (bit 7) = row address order
+ *   MX  (bit 6) = column address order
+ *   MV  (bit 5) = row/column exchange (0=portrait, 1=landscape)
+ *   BGR (bit 3) = colour order
+ *
+ * The display's native resolution is 320 cols × 480 rows (portrait).
+ * fbtft-core creates a portrait framebuffer for rotate=0/180 and a
+ * landscape framebuffer for rotate=90/270, so the MV bit must match.
+ */
 static const uint8_t lcd_rotations[4] = {
-	0xEA,	/*   0 deg */
-	0x4A,	/*  90 deg */
-	0x2A,	/* 180 deg */
-	0x0A	/* 270 deg */
+	0x0A,	/*   0°  portrait  — MV=0, MY=0, MX=0, BGR */
+	0x6A,	/*  90°  landscape — MV=1, MY=0, MX=1, BGR */
+	0xCA,	/* 180°  portrait  — MV=0, MY=1, MX=1, BGR */
+	0xAA,	/* 270°  landscape — MV=1, MY=1, MX=0, BGR */
 };
-
-static uint16_t lcd_h;
-static uint16_t lcd_w;
 
 static int kedei_write(struct fbtft_par *par, void *buf, size_t len)
 {
@@ -76,14 +86,7 @@ static void lcd_data(struct fbtft_par *par, uint8_t dat)
 static void lcd_setrotation(struct fbtft_par *par, uint8_t m)
 {
 	lcd_cmd(par, 0x36);
-	lcd_data(par, lcd_rotations[m]);
-	if (m & 1) {
-		lcd_h = WIDTH;
-		lcd_w = HEIGHT;
-	} else {
-		lcd_h = HEIGHT;
-		lcd_w = WIDTH;
-	}
+	lcd_data(par, lcd_rotations[m & 3]);
 }
 
 static void set_addr_win(struct fbtft_par *par, int xs, int ys,
@@ -331,10 +334,31 @@ static int init_display(struct fbtft_par *par)
 
 	mdelay(10);
 
-	/* Set rotation to 270° (landscape, connector on the right) */
-	lcd_setrotation(par, 3);
+	/*
+	 * Apply rotation from the DT "rotate" property (degrees).
+	 * fbtft-core already read it into par->info->var.rotate and
+	 * swapped the framebuffer width/height accordingly.  Here we
+	 * program the R61581's Memory Access Control register (0x36)
+	 * to match.  Default: 270° (landscape, connector on the right).
+	 */
+	switch (par->info->var.rotate) {
+	case 0:
+		lcd_setrotation(par, 0);
+		break;
+	case 90:
+		lcd_setrotation(par, 1);
+		break;
+	case 180:
+		lcd_setrotation(par, 2);
+		break;
+	case 270:
+	default:
+		lcd_setrotation(par, 3);
+		break;
+	}
 
-	dev_info(par->info->device, "kedei62 initialized\n");
+	dev_info(par->info->device, "kedei62 initialized (rotate=%u)\n",
+		 par->info->var.rotate);
 	return 0;
 }
 
