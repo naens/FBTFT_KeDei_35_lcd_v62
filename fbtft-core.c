@@ -558,6 +558,7 @@ struct fb_info *fbtft_framebuffer_alloc(struct fbtft_display *display,
 		.fb_imageblit = fbtft_fb_imageblit,
 		.fb_setcolreg = fbtft_fb_setcolreg,
 		.fb_blank     = fbtft_fb_blank,
+		.fb_mmap      = fb_deferred_io_mmap,
 	};
 
 	struct fb_info *info;
@@ -662,10 +663,6 @@ struct fb_info *fbtft_framebuffer_alloc(struct fbtft_display *display,
 	info->fbops = &fbtft_fbops;
 	info->fbdefio = fbdefio;
 
-	fbdefio->delay =           HZ / fps;
-	fbdefio->deferred_io =     fbtft_deferred_io;
-	fb_deferred_io_init(info);
-
 	strscpy(info->fix.id, dev->driver->name, sizeof(info->fix.id));
 	info->fix.type =           FB_TYPE_PACKED_PIXELS;
 	info->fix.visual =         FB_VISUAL_TRUECOLOR;
@@ -675,6 +672,12 @@ struct fb_info *fbtft_framebuffer_alloc(struct fbtft_display *display,
 	info->fix.line_length =    width * bpp / 8;
 	info->fix.accel =          FB_ACCEL_NONE;
 	info->fix.smem_len =       vmem_size;
+
+	fbdefio->delay =           HZ / fps;
+	fbdefio->sort_pagereflist = true;
+	fbdefio->deferred_io =     fbtft_deferred_io;
+	if (fb_deferred_io_init(info))
+		goto alloc_fail;
 
 	info->var.rotate =         pdata->rotate;
 	info->var.xres =           width;
