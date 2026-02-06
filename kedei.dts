@@ -11,6 +11,17 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 
+			/*
+			 * Override cs-gpios:
+			 *   CE0 slot: <0> = not managed by SPI core (GPIO 8
+			 *     is used by the kedei62 driver as a 74HC595 latch
+			 *     signal, so we must keep it free here).
+			 *   CE1 slot: GPIO 7, active-low — the KeDei CPLD
+			 *     accepts data while CE1 is held LOW.
+			 */
+			cs-gpios = <0>,              /* CE0: not managed  */
+				   <&gpio 7 1>;      /* CE1: GPIO_ACTIVE_LOW */
+
 			spidev@0{
 				reg = <0>;
 				status = "disabled";
@@ -47,23 +58,38 @@
 				spi-max-frequency = <39000000>;
 				rotate = <0>;
 				bgr;
-				fps = <1>;
+				fps = <20>;
 				buswidth = <8>;
 				regwidth = <8>;
 				debug = <0>;
+
+				/*
+				 * The KeDei board routes GPIO 8 (CE0)
+				 * to the 74HC595 RCLK (latch) input.
+				 * fbtft reads this as par->gpio.cs and
+				 * kedei_write() toggles it around every
+				 * 3-byte SPI packet.
+				 */
+				cs-gpios = <&gpio 8 0>; /* GPIO_ACTIVE_HIGH */
 			};
 
-			kedei62-ts@0 {
-				compatible = "ti,ads7846";
-				reg = <0>;
-
-				spi-max-frequency = <2000000>;
-				interrupts = <25 2>; /* high-to-low edge triggered */
-				interrupt-parent = <&gpio>;
-				pendown-gpio = <&gpio 25 0>;
-				ti,x-plate-ohms = /bits/ 16 <60>;
-				ti,pressure-max = /bits/ 16 <255>;
-			};
+			/*
+			 * Touchscreen disabled while GPIO 8 is used
+			 * as the display latch signal.  Re-enable once
+			 * a GPIO-sharing solution is in place.
+			 *
+			 * kedei62-ts@0 {
+			 *	compatible = "ti,ads7846";
+			 *	reg = <0>;
+			 *
+			 *	spi-max-frequency = <2000000>;
+			 *	interrupts = <25 2>;
+			 *	interrupt-parent = <&gpio>;
+			 *	pendown-gpio = <&gpio 25 0>;
+			 *	ti,x-plate-ohms = /bits/ 16 <60>;
+			 *	ti,pressure-max = /bits/ 16 <255>;
+			 * };
+			 */
 
 		};
 	};

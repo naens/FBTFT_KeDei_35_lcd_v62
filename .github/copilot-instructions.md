@@ -38,6 +38,6 @@ sudo ./install_dtb.sh   # compiles kedei.dts → kedei.dtb into /boot/overlays/
 | `Kconfig` | `CONFIG_FB_TFT` and `CONFIG_FB_KEDEI62`; note: `FB_SYS_FOPS` no longer exists |
 
 ## Common Patterns
-- **SPI protocol**: Every SPI transaction is wrapped: `gpiod_set_value(cs, 1)` → `fbtft_write_spi()` → `gpiod_set_value(cs, 0)`. See `kedei_write()` in `fb_kedei62.c`.
+- **SPI protocol**: Every SPI transaction is wrapped: `gpiod_set_value(cs, 1)` → `fbtft_write_spi()` → `gpiod_set_value(cs, 0)`, where `cs` is GPIO 8 (74HC595 RCLK latch). The SPI framework separately toggles GPIO 7 (CE1, active-low) for each `spi_sync()`. See `kedei_write()` in `fb_kedei62.c`.
 - **Display update**: Kernel's deferred I/O triggers `fbtft_deferred_io()` → `fbtft_update_display()` → `set_addr_win()` + `write_vmem()`. The `write_vmem()` byte-swaps RGB565 pixels into the 3-byte protocol.
 - **`install_ko.sh`**: Uses `$SCRIPT_DIR` to locate `.ko` files. Previously had a hardcoded path — do not re-introduce it.

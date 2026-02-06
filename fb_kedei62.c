@@ -33,9 +33,12 @@ static uint16_t lcd_w;
 static int kedei_write(struct fbtft_par *par, void *buf, size_t len)
 {
 	/*
-	 * The KeDei 6.2 board directly wires CE1 as a active-high
-	 * select line.  Use the cs gpio descriptor from the fbtft_par
-	 * structure to toggle it; fall back to SPI-managed CS otherwise.
+	 * The KeDei 6.2 board uses 3× 74HC595 shift registers.
+	 * GPIO 7 (CE1) is the SPI chip-select (active-low, managed
+	 * by the SPI framework).  GPIO 8 (CE0) is the 74HC595 RCLK
+	 * (latch) signal — we toggle it HIGH before and LOW after
+	 * each SPI packet to latch shift-register data onto the
+	 * parallel LCD bus.
 	 */
 	if (par->gpio.cs)
 		gpiod_set_value(par->gpio.cs, 1);

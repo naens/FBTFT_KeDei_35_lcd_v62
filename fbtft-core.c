@@ -76,23 +76,40 @@ static int fbtft_request_one_gpio(struct fbtft_par *par,
 				  struct gpio_desc **gpiop)
 {
 	struct device *dev = par->info->device;
-	struct device_node *node = dev->of_node;
-	int ret = 0;
+	char con_id[32];
+	const char *suffix;
+	size_t len;
 
-	if (of_find_property(node, name, NULL)) {
-		*gpiop = devm_gpiod_get_index(dev, dev->driver->name, index,
-					      GPIOD_OUT_HIGH);
-		if (IS_ERR(*gpiop)) {
-			ret = PTR_ERR(*gpiop);
-			dev_err(dev,
-				"Failed to request %s GPIO:%d\n", name, ret);
-			return ret;
-		}
-		fbtft_par_dbg(DEBUG_REQUEST_GPIOS, par, "%s: '%s' GPIO\n",
-			      __func__, name);
+	/*
+	 * Derive the gpiod consumer-id from the DT property name by
+	 * stripping the "-gpios" (or "-gpio") suffix.  For example
+	 * "cs-gpios" → consumer-id "cs", so devm_gpiod_get_index_optional()
+	 * will look up the "cs-gpios" DT property — which is the same
+	 * property the caller intended.
+	 */
+	suffix = strstr(name, "-gpio");
+	if (suffix) {
+		len = suffix - name;
+		if (len >= sizeof(con_id))
+			len = sizeof(con_id) - 1;
+		memcpy(con_id, name, len);
+		con_id[len] = '\0';
+	} else {
+		strscpy(con_id, name, sizeof(con_id));
 	}
 
-	return ret;
+	*gpiop = devm_gpiod_get_index_optional(dev, con_id, index,
+					       GPIOD_OUT_LOW);
+	if (IS_ERR(*gpiop)) {
+		dev_err(dev, "Failed to request %s GPIO: %ld\n",
+			name, PTR_ERR(*gpiop));
+		return PTR_ERR(*gpiop);
+	}
+	if (*gpiop)
+		fbtft_par_dbg(DEBUG_REQUEST_GPIOS, par, "%s: '%s' GPIO\n",
+			      __func__, name);
+
+	return 0;
 }
 
 static int fbtft_request_gpios_dt(struct fbtft_par *par)
