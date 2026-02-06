@@ -6,7 +6,6 @@ menuconfig FB_TFT
 	select FB_SYS_FILLRECT
 	select FB_SYS_COPYAREA
 	select FB_SYS_IMAGEBLIT
-	select FB_SYS_FOPS
 	select FB_DEFERRED_IO
 	select FB_BACKLIGHT
 
@@ -210,6 +209,8 @@ config FB_TFT_FBTFT_DEVICE
 	tristate "Module to for adding FBTFT devices"
 	depends on FB_TFT
 
-config CONFIG_FB_KEDEI62
-    tristate "FB driver for KeDei 6.2"
-    depends on FB_TFT
+config FB_KEDEI62
+	tristate "FB driver for KeDei 6.2"
+	depends on FB_TFT
+	help
+	  Framebuffer support for the KeDei 6.2 TFT display

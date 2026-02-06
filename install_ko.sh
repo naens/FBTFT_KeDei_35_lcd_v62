@@ -1,4 +1,5 @@
 #!/bin/bash
 
-cp /home/tong/fbtft/*.ko /lib/modules/`uname -r`/kernel/misc && depmod -a
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cp "$SCRIPT_DIR"/*.ko /lib/modules/$(uname -r)/kernel/misc && depmod -a
 

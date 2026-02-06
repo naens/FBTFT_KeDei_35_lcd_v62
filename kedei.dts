@@ -2,7 +2,7 @@
 /plugin/;
 
 / {
-    compatible = "brcm,bcm2835";
+    compatible = "brcm,bcm2835", "brcm,bcm2837";
 
 	fragment@0 {
 		target = <&spi0>;
@@ -24,7 +24,7 @@
 		__overlay__ {
 			kedei62_pins: kedei62_pins {
 				brcm,pins = <25>;
-				brcm,function = <0>; //in
+				brcm,function = <0>; /* in */
 			};
 		};
 	};
@@ -54,7 +54,7 @@
 				reg = <0>;
 
 				spi-max-frequency = <2000000>;
-				interrupts = <25 2>; // high-to-low edge triggered
+				interrupts = <25 2>; /* high-to-low edge triggered */
 				interrupt-parent = <&gpio>;
 				pendown-gpio = <&gpio 25 0>;
 				ti,x-plate-ohms = /bits/ 16 <60>;
