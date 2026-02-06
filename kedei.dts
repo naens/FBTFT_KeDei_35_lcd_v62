@@ -8,12 +8,16 @@
 		target = <&spi0>;
 		__overlay__ {
 			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
 
 			spidev@0{
+				reg = <0>;
 				status = "disabled";
 			};
 
 			spidev@1{
+				reg = <1>;
 				status = "disabled";
 			};
 		};
