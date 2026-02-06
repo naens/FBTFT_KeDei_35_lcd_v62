@@ -77,13 +77,13 @@ con2fbmap 1 1
 You can pass parameters via `config.txt`:
 
 ```
-dtoverlay=kedei,speed=39000000,rotate=0,fps=20,debug=0
+dtoverlay=kedei,speed=39000000,rotate=270,fps=20,debug=0
 ```
 
 | Parameter | Default    | Description                          |
 |-----------|------------|--------------------------------------|
 | speed     | 39000000   | SPI clock frequency in Hz            |
-| rotate    | 0          | Rotation: 0, 90, 180, 270           |
+| rotate    | 270        | Rotation: 0, 90, 180, 270           |
 | fps       | 20         | Frames per second for deferred I/O   |
 | debug     | 0          | Debug verbosity level (0-7)          |
 

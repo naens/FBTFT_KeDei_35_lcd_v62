@@ -78,13 +78,9 @@ dtoverlay=kedei,rotate=0
 | `180` | 180° — Portrait, connector at top | 320 × 480 |
 | `270` | 270° — Landscape, connector on right **(default)** | 480 × 320 |
 
-> **Note**: The driver's `init_display()` currently hardcodes
-> `lcd_setrotation(par, 3)` (270°) as a final step, so the DT `rotate`
-> property primarily affects how the FBTFT core swaps width/height for
-> the framebuffer geometry.  To fully use 0°/90°/180° you would also
-> need to edit the `init_display()` call or add a `set_var` callback
-> that re-programs register 0x36.  For most uses, the default landscape
-> orientation (270°) works well.
+The driver programs the R61581's Memory Access Control register (0x36) to
+match the DT value, so both framebuffer geometry and LCD scan direction
+stay in sync for all four orientations.
 
 ### Method B — Rotate the console in software (no reboot)
 
@@ -398,7 +394,7 @@ dtoverlay=kedei
 
 ```ini
 dtparam=spi=on
-dtoverlay=kedei,speed=39000000,rotate=0,fps=20,debug=0
+dtoverlay=kedei,speed=39000000,rotate=270,fps=20,debug=0
 ```
 
 ### Console on TFT at boot
@@ -414,7 +410,7 @@ fbcon=map:10
 | Parameter | Where | Default | Description |
 |-----------|-------|---------|-------------|
 | `speed` | config.txt | 39000000 | SPI clock (Hz) |
-| `rotate` | config.txt | 0 | Hardware rotation (0/90/180/270) |
+| `rotate` | config.txt | 270 | Hardware rotation (0/90/180/270) |
 | `fps` | config.txt | 20 | Deferred I/O refresh rate |
 | `debug` | config.txt or sysfs | 0 | Debug verbosity (0–7) |
 | `fbcon=map:10` | cmdline.txt | — | Map tty0→fb1, tty1→fb0 |

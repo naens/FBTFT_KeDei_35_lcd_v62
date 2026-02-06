@@ -25,6 +25,7 @@ wrong, why, and how to fix it.
 14. [Touchscreen Conflicts with Display Latch](#14-touchscreen-conflicts)
 15. [FPS Default Override](#15-fps-default-override)
 16. [Kconfig: FB_SYS_FOPS No Longer Exists](#16-fb_sys_fops-removed)
+17. [Rotation Table Must Match fbtft-core Geometry](#17-rotation-table-must-match-fbtft-core)
 
 ---
 
@@ -374,6 +375,44 @@ and must be selected.
 
 ---
 
+## 17. Rotation Table Must Match fbtft-core Geometry
+
+**Symptom**: Rotations 0/180 show a mirrored image.  Rotations 90/270 skip
+pixel lines and display garbage below a square region.
+
+**Root cause**: The R61581 register 0x36 (Memory Access Control) has a MV bit
+(bit 5) that swaps the row/column scan direction.  The original rotation table
+had MV **inverted** — landscape values where fbtft-core expected portrait and
+vice versa.  fbtft-core uses the DT `rotate` property to set the framebuffer
+dimensions (portrait for 0°/180°, landscape for 90°/270°), but the LCD
+scanned in the opposite direction, causing a geometry mismatch.
+
+**The wrong table**:
+
+| Index | Value | MV | fbtft-core FB | LCD scan   | Result        |
+|-------|-------|----|---------------|------------|---------------|
+| 0     | 0xEA  | 1  | Portrait      | Landscape  | Mirrored      |
+| 1     | 0x4A  | 0  | Landscape     | Portrait   | Skipped lines |
+| 2     | 0x2A  | 1  | Portrait      | Landscape  | Mirrored      |
+| 3     | 0x0A  | 0  | Landscape     | Portrait   | Skipped lines |
+
+**The correct table** (register 0x36 bits: `MY.MX.MV.ML.BGR.MH.x.x`):
+
+| Index | Value | MY | MX | MV | Orientation      |
+|-------|-------|----|----|----|------------------|
+| 0     | 0x0A  | 0  | 0  | 0  | Portrait (0°)    |
+| 1     | 0x6A  | 0  | 1  | 1  | Landscape (90°)  |
+| 2     | 0xCA  | 1  | 1  | 0  | Portrait (180°)  |
+| 3     | 0xAA  | 1  | 0  | 1  | Landscape (270°) |
+
+All four values include BGR (bit 3) = 1 and bit 1 = 1 (per vendor init code).
+
+**Fix**: Replace the `lcd_rotations[]` array in `fb_kedei62.c` with the
+corrected values and ensure `init_display()` reads the DT-supplied rotation
+from `par->info->var.rotate` rather than hardcoding a single index.
+
+---
+
 ## Quick Checklist
 
 Before deploying, verify:
@@ -383,6 +422,7 @@ Before deploying, verify:
 - [ ] **No** `spi-cs-high` in the device node
 - [ ] Device node has `cs-gpios = <&gpio 8 0>` for the latch signal
 - [ ] `fps = <20>` (or desired value) in the DTS
+- [ ] `rotate = <270>` (or desired value) in the DTS
 - [ ] Overlay installed as `.dtbo` in the correct boot partition
 - [ ] `dtoverlay=kedei` and `dtparam=spi=on` in `config.txt`
 - [ ] Touchscreen node is **disabled** (GPIO 8 conflict)
