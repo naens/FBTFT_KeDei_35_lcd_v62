@@ -19,6 +19,7 @@ after the driver has been installed and the display shows pixels.
 10. [Debugging and Diagnostics](#10-debugging-and-diagnostics)
 11. [Unloading the Driver](#11-unloading-the-driver)
 12. [Boot Configuration Reference](#12-boot-configuration-reference)
+13. [Buildroot Integration](#13-buildroot-integration)
 
 ---
 
@@ -415,3 +416,189 @@ fbcon=map:10
 | `debug` | config.txt or sysfs | 0 | Debug verbosity (0–7) |
 | `fbcon=map:10` | cmdline.txt | — | Map tty0→fb1, tty1→fb0 |
 | `fbcon=map:1` | cmdline.txt | — | All consoles on fb1 |
+
+---
+
+## 13. Buildroot Integration
+
+The driver can be cross-compiled as a Buildroot package using the
+`$(eval $(kernel-module))` infrastructure.  This section describes how
+to set it up from scratch.
+
+### 13.1 Kernel Config Prerequisites
+
+The kernel must have these options enabled (built-in or module):
+
+```
+CONFIG_FB=y
+CONFIG_FB_SYS_FILLRECT=y   (or =m)
+CONFIG_FB_SYS_COPYAREA=y
+CONFIG_FB_SYS_IMAGEBLIT=y
+CONFIG_FB_DEFERRED_IO=y
+CONFIG_FB_BACKLIGHT=y       (or =m)
+CONFIG_SPI_BCM2835=y        (or =m — see §13.5)
+CONFIG_GPIOLIB=y
+```
+
+The default `raspberrypi3_defconfig` includes all of these.
+
+### 13.2 Package Structure
+
+Create `package/kedei62/` in your Buildroot tree with two files:
+
+**`Config.in`**:
+
+```kconfig
+config BR2_PACKAGE_KEDEI62
+	bool "kedei62"
+	depends on BR2_LINUX_KERNEL
+	help
+	  Kernel modules and Device Tree overlay for the KeDei 6.2
+	  SPI TFT display (480×320, R61581 controller via 74HC595
+	  shift-register bridge).
+
+	  Builds fbtft.ko (core) and fb_kedei62.ko (driver), plus
+	  compiles and installs kedei.dtbo to the boot partition.
+```
+
+**`kedei62.mk`**:
+
+```makefile
+KEDEI62_VERSION = 1.0
+KEDEI62_SITE = /path/to/kedei62-source
+KEDEI62_SITE_METHOD = local
+KEDEI62_LICENSE = GPL-2.0+
+KEDEI62_LICENSE_FILES = LICENSE
+KEDEI62_REDISTRIBUTE = NO
+KEDEI62_INSTALL_IMAGES = YES
+
+$(eval $(kernel-module))
+
+# Compile the DT overlay after the kernel modules.
+# Uses the kernel tree's dtc (supports -@ for overlays).
+define KEDEI62_BUILD_DT_OVERLAY
+	$(LINUX_DIR)/scripts/dtc/dtc -@ -I dts -O dtb \
+		-o $(@D)/kedei.dtbo $(@D)/kedei.dts
+endef
+KEDEI62_POST_BUILD_HOOKS += KEDEI62_BUILD_DT_OVERLAY
+
+define KEDEI62_INSTALL_IMAGES_CMDS
+	$(INSTALL) -D -m 0644 $(@D)/kedei.dtbo \
+		$(BINARIES_DIR)/rpi-firmware/overlays/kedei.dtbo
+endef
+
+$(eval $(generic-package))
+```
+
+Key points:
+- `$(eval $(kernel-module))` must come **before** `$(eval $(generic-package))`.
+- The DT overlay is built via `KEDEI62_POST_BUILD_HOOKS` (not
+  `KEDEI62_BUILD_CMDS`) to avoid overriding the kernel-module build.
+- `KEDEI62_INSTALL_IMAGES_CMDS` places the `.dtbo` where genimage can
+  pick it up for the boot FAT partition.
+
+### 13.3 Makefile Compatibility
+
+The driver's Makefile defaults both config symbols to `=m` when no
+`.config` file is present:
+
+```makefile
+-include $(src)/.config
+CONFIG_FB_TFT     ?= m
+CONFIG_FB_KEDEI62 ?= m
+```
+
+This is critical — Buildroot's `kernel-module` framework runs
+`$(MAKE) -C $(LINUX_DIR) M=$(@D) modules` which enters the kbuild
+block directly.  Without the `?= m` defaults, `obj-$(CONFIG_FB_TFT)`
+expands to `obj-` and nothing gets built.
+
+### 13.4 Wiring the Package
+
+1. Add to `package/Config.in` (alphabetically in *Hardware handling*):
+
+   ```
+   source "package/kedei62/Config.in"
+   ```
+
+2. Enable in your defconfig or `.config`:
+
+   ```
+   BR2_PACKAGE_KEDEI62=y
+   ```
+
+3. Add SPI and overlay to your board's `config.txt`
+   (e.g., `board/raspberrypi3/config_3.txt`):
+
+   ```ini
+   dtparam=spi=on
+   dtoverlay=kedei,rotate=270,fps=20
+   ```
+
+   After editing, force a rebuild: `make rpi-firmware-rebuild`.
+
+### 13.5 Auto-Loading Modules at Boot
+
+BusyBox init's `S11modules` script reads `/etc/modules-load.d/*.conf`
+(it does **not** read `/etc/modules`).  Create a file in your rootfs
+overlay:
+
+**`rootfs_overlay/etc/modules-load.d/kedei62.conf`**:
+
+```
+# KeDei 6.2 TFT display
+spi_bcm2835
+fbtft
+fb_kedei62
+```
+
+The `spi_bcm2835` line is needed if `CONFIG_SPI_BCM2835=m` (module).
+If the SPI controller driver is built-in (`=y`), that line is harmless
+but unnecessary.
+
+> **Gotcha**: If `spi_bcm2835` is not loaded, the DT node exists but
+> the SPI core has no bus master to enumerate — probe never fires and
+> `/dev/fb1` never appears.  The modules load without errors and
+> `lsmod` shows them, but nothing happens.
+
+### 13.6 Console Font (Optional)
+
+To set a custom console font at boot, add a BusyBox init script to
+the rootfs overlay:
+
+**`rootfs_overlay/etc/init.d/S12font`** (chmod +x):
+
+```sh
+#!/bin/sh
+FONT="/root/fonts/ter-i12n.psf"
+case "$1" in
+	start)
+		printf 'Setting console font: '
+		for vt in /dev/tty[0-9]*; do
+			loadfont < "$FONT" > "$vt" 2>/dev/null
+		done
+		echo "OK"
+		;;
+esac
+```
+
+Place the PSF font file in the overlay at the matching path.  `S12font`
+runs after `S11modules`, so the framebuffer device exists by the time
+the font is applied.
+
+### 13.7 Build Commands
+
+```bash
+# Regenerate .config after adding BR2_PACKAGE_KEDEI62=y
+make olddefconfig
+
+# Build just the package (faster for testing)
+make kedei62-rebuild
+
+# Rebuild the full SD card image
+make
+```
+
+Flash `output/images/sdcard.img` to SD.  The modules appear in
+`/lib/modules/<version>/extra/`, the overlay in
+`/boot/overlays/kedei.dtbo`.

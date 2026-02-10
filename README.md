@@ -87,6 +87,31 @@ dtoverlay=kedei,speed=39000000,rotate=270,fps=20,debug=0
 | fps       | 20         | Frames per second for deferred I/O   |
 | debug     | 0          | Debug verbosity level (0-7)          |
 
+## Buildroot Integration
+
+The driver works with Buildroot's `$(eval $(kernel-module))` framework for
+cross-compiled Raspberry Pi images.  See the full guide in
+[USAGE.md § Buildroot](USAGE.md#13-buildroot-integration).
+
+### Quick overview
+
+1. Create `package/kedei62/` in your Buildroot tree with `Config.in` and
+   `kedei62.mk` (see USAGE.md for complete file contents).
+
+2. The Makefile defaults `CONFIG_FB_TFT` and `CONFIG_FB_KEDEI62` to `=m`
+   when no `.config` is present, so external build systems work without
+   any extra configuration.
+
+3. The package also compiles `kedei.dts` → `kedei.dtbo` and installs it
+   into the boot partition overlays directory.
+
+4. Three additional items are needed in the rootfs / boot partition:
+   - `dtparam=spi=on` and `dtoverlay=kedei` in the board `config.txt`
+   - `/etc/modules-load.d/kedei62.conf` to auto-load `spi_bcm2835`,
+     `fbtft`, and `fb_kedei62` at boot (BusyBox init reads
+     `/etc/modules-load.d/*.conf` via the `S11modules` init script —
+     it does **not** read `/etc/modules`)
+
 ## Touchscreen
 
 The KeDei board has an ADS7846 touchscreen controller on SPI CE0, but GPIO 8

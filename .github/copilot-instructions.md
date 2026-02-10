@@ -17,6 +17,13 @@ sudo ./install_dtb.sh   # compiles kedei.dts → kedei.dtbo into /boot/firmware/
 # Add "dtoverlay=kedei" and "dtparam=spi=on" to /boot/firmware/config.txt, then reboot
 ```
 
+## Build & Install (Buildroot)
+The Makefile defaults `CONFIG_FB_TFT` and `CONFIG_FB_KEDEI62` to `=m` when no `.config` is present, so Buildroot's `$(eval $(kernel-module))` works without extra configuration. Create a `package/kedei62/` with `Config.in` + `kedei62.mk` (see USAGE.md §13). Key Buildroot notes:
+- DT overlay is compiled via `KEDEI62_POST_BUILD_HOOKS` (not `BUILD_CMDS`) so it doesn't override the kernel-module build.
+- BusyBox init reads `/etc/modules-load.d/*.conf`, **not** `/etc/modules`.
+- `spi_bcm2835` must be loaded before the display modules if `CONFIG_SPI_BCM2835=m`.
+- Run `make rpi-firmware-rebuild` after editing the board's `config.txt`.
+
 ## Coding Conventions
 - **Style**: Linux Kernel Coding Style — 8-char tabs, C89/GNU89 standard.
 - **GPIO**: Use `gpiod_*` API only (e.g., `gpiod_set_value(par->gpio.cs, 1)`). Legacy `gpio_set_value()` / `<linux/gpio.h>` is removed.

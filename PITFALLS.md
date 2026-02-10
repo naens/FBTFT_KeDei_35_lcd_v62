@@ -26,6 +26,9 @@ wrong, why, and how to fix it.
 15. [FPS Default Override](#15-fps-default-override)
 16. [Kconfig: FB_SYS_FOPS No Longer Exists](#16-fb_sys_fops-removed)
 17. [Rotation Table Must Match fbtft-core Geometry](#17-rotation-table-must-match-fbtft-core)
+18. [Buildroot: SPI Controller Module Not Loaded](#18-buildroot-spi-controller-not-loaded)
+19. [Buildroot: BusyBox Init Does Not Read /etc/modules](#19-buildroot-busybox-etcmodules)
+20. [Buildroot: config.txt Not Updated After Edit](#20-buildroot-configtxt-cached)
 
 ---
 
@@ -413,11 +416,78 @@ from `par->info->var.rotate` rather than hardcoding a single index.
 
 ---
 
+## 18. Buildroot: SPI Controller Module Not Loaded
+
+**Symptom**: Modules load, `lsmod` shows `fbtft` and `fb_kedei62`, but
+`/dev/fb1` never appears.  The DT node exists under
+`/proc/device-tree/soc/spi@7e204000/kedei62@1/`.
+
+**Root cause**: `CONFIG_SPI_BCM2835=m` means the SPI bus controller is a
+loadable module.  Without a bus master, the SPI core has no bus to enumerate
+devices on — even though the DT node exists, `probe()` never fires.
+
+**Fix**: Load `spi_bcm2835` before the display modules:
+
+```bash
+modprobe spi_bcm2835
+modprobe fbtft
+modprobe fb_kedei62
+```
+
+For automatic loading at boot, see §19.  Alternatively, build the SPI
+controller into the kernel (`CONFIG_SPI_BCM2835=y`) via a kernel config
+fragment.
+
+---
+
+## 19. Buildroot: BusyBox Init Does Not Read /etc/modules
+
+**Symptom**: `/etc/modules` exists with the correct module names, but modules
+are not loaded at boot.
+
+**Root cause**: BusyBox init does not read `/etc/modules`.  Its `S11modules`
+init script reads `*.conf` files from `/etc/modules-load.d/` instead.
+
+**Fix**: Create `/etc/modules-load.d/kedei62.conf` (via rootfs overlay):
+
+```
+spi_bcm2835
+fbtft
+fb_kedei62
+```
+
+The `S11modules` script iterates over all `.conf` files in that directory and
+calls `modprobe` for each line.
+
+---
+
+## 20. Buildroot: config.txt Not Updated After Edit
+
+**Symptom**: You added `dtparam=spi=on` and `dtoverlay=kedei` to the board's
+`config_3.txt`, but after `make`, the SD card image still has the old
+`config.txt` without your changes.
+
+**Root cause**: The `rpi-firmware` package was already built and cached.
+Buildroot does not re-copy `config.txt` unless the package is explicitly
+rebuilt.
+
+**Fix**:
+
+```bash
+make rpi-firmware-rebuild
+make
+```
+
+This forces `rpi-firmware` to re-install, picking up the modified
+`config_3.txt` into `output/images/rpi-firmware/config.txt`.
+
+---
+
 ## Quick Checklist
 
 Before deploying, verify:
 
-- [ ] Built **natively** on the target RPi (vermagic match)
+- [ ] Built **natively** on the target RPi (vermagic match), or cross-compiled via Buildroot
 - [ ] `cs-gpios` at controller level has `<0>` for CE0 and `<&gpio 7 1>` for CE1
 - [ ] **No** `spi-cs-high` in the device node
 - [ ] Device node has `cs-gpios = <&gpio 8 0>` for the latch signal
@@ -426,3 +496,5 @@ Before deploying, verify:
 - [ ] Overlay installed as `.dtbo` in the correct boot partition
 - [ ] `dtoverlay=kedei` and `dtparam=spi=on` in `config.txt`
 - [ ] Touchscreen node is **disabled** (GPIO 8 conflict)
+- [ ] *(Buildroot)* `spi_bcm2835` in `/etc/modules-load.d/kedei62.conf` if `CONFIG_SPI_BCM2835=m`
+- [ ] *(Buildroot)* `rpi-firmware-rebuild` after editing `config.txt`
